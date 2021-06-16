@@ -1,18 +1,15 @@
 import * as t from "@effect-ts/schema"
-import {
-  IntersectionType,
-  TaggedUnionType,
-  UnionType,
-  ValidationError,
-} from 'io-ts';
-import { absurd, flow, identity, not, pipe } from 'fp-ts/function';
-import * as ReadonlyArray from 'fp-ts/ReadonlyArray';
-import * as Option from 'fp-ts/Option';
-import * as Either from 'fp-ts/Either';
-import * as SemiGroup from 'fp-ts/Semigroup';
+import * as TUP from "@effect-ts/core/Collections/Immutable/Tuple"
+import { absurd, flow, identity, not, pipe } from '@effect-ts/core/Function';
+import * as ReadonlyArray from '@effect-ts/core/Collections/Immutable/Array';
+import * as Option from '@effect-ts/core/Option';
+import * as Either from '@effect-ts/core/Either';
+//import * as Assoc from '@effect-ts/core/Associative';
 import arrayToPath from './arrayToPath';
-import * as ReadonlyRecord from 'fp-ts/ReadonlyRecord';
+import * as ReadonlyRecord from '@effect-ts/core/Collections/Immutable/Dictionary';
 import { ErrorObject, FieldErrorWithPath } from './types';
+import { makeClosure } from "@effect-ts/core/Closure";
+import { AnyError } from "@effect-ts/schema";
 
 const formatErrorPath = (context: t.Context): string =>
   pipe(
@@ -36,9 +33,14 @@ const formatErrorPath = (context: t.Context): string =>
         Either.fromPredicate(not<number>(Number.isNaN), () => key),
       ),
     ),
-    ReadonlyArray.toArray,
+    ReadonlyArray,
     arrayToPath,
   );
+
+function formatErrors(e: t.AnyError) {
+  // TODO
+  return [formatError(e)]
+}
 
 const formatError = (e: t.AnyError): FieldErrorWithPath => {
   const path = formatErrorPath(e.context);
@@ -60,7 +62,7 @@ const formatError = (e: t.AnyError): FieldErrorWithPath => {
         ),
       ),
     ),
-    Either.getOrElseW(identity),
+    Either.getOrElse(identity),
   );
 
   const type = pipe(
@@ -73,42 +75,57 @@ const formatError = (e: t.AnyError): FieldErrorWithPath => {
   return { message, type, path };
 };
 
+// Either.getValidationApplicative ?
+
 // this is almost the same function like Semigroup.getObjectSemigroup but reversed
 // in order to get the first error
-const getObjectSemigroup = <
-  A extends Record<string, unknown> = never,
->(): SemiGroup.Semigroup<A> => ({
-  concat: (first, second) => Object.assign({}, second, first),
-});
+// const getObjectSemigroup = <
+//   A extends Record<string, unknown> = never,
+// >(): SemiGroup.Semigroup<A> => ({
+//   concat: (first, second) => Object.assign({}, second, first),
+// });
 
 const concatToSingleError = (
   errors: ReadonlyArray<FieldErrorWithPath>,
 ): ErrorObject =>
-  pipe(
-    errors,
-    ReadonlyArray.map((error) => ({
-      [error.path]: {
+  errors.reduce((prev, error) => {
+    // first only.
+    if (!prev[error.path]) {
+      prev[error.path] = {
         type: error.type,
         message: error.message,
-      },
-    })),
-    (errors) => SemiGroup.fold(getObjectSemigroup<ErrorObject>())({}, errors),
-  );
+      }
+    }
+    return prev
+  }, {} as Record<string, { type: string, message: string | undefined}>)
+// pipe(
+//   errors,
+//   ReadonlyArray.map((error) => ({
+//     [error.path]: {
+//       type: error.type,
+//       message: error.message,
+//     },
+//   })),
+//   (errors) => SemiGroup.fold(getObjectSemigroup<ErrorObject>())({}, errors),
+// );
 
-const appendSeveralErrors: SemiGroup.Semigroup<FieldErrorWithPath> = {
-  concat: (a, b) => ({
-    ...b,
-    types: { ...a.types, [a.type]: a.message, [b.type]: b.message },
-  }),
-};
+// const appendSeveralErrors: SemiGroup.Semigroup<FieldErrorWithPath> = {
+//   concat: (a, b) => ({
+//     ...b,
+//     types: { ...a.types, [a.type]: a.message, [b.type]: b.message },
+//   }),
+// };
 
 const concatToMultipleErrors = (
   errors: ReadonlyArray<FieldErrorWithPath>,
 ): ErrorObject =>
   pipe(
-    ReadonlyRecord.fromFoldableMap(appendSeveralErrors, ReadonlyArray.Foldable)(
-      errors,
-      (error) => [error.path, error],
+    errors,
+    ReadonlyRecord.fromFoldableMap(makeClosure<FieldErrorWithPath>((a, b) => ({
+      ...b,
+      types: { ...a.types, [a.type]: a.message, [b.type]: b.message },
+    })), ReadonlyArray.Foldable)(
+      (error) => TUP.fromNative([error.path, error]),
     ),
     ReadonlyRecord.map((errorWithPath) => {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -120,12 +137,12 @@ const concatToMultipleErrors = (
 
 const errorsToRecord =
   (validateAllFieldCriteria: boolean) =>
-  (validationErrors: ReadonlyArray<ValidationError>): ErrorObject => {
-    const concat = validateAllFieldCriteria
-      ? concatToMultipleErrors
-      : concatToSingleError;
+    (validationErrors: AnyError): ErrorObject => {
+      const concat = validateAllFieldCriteria
+        ? concatToMultipleErrors
+        : concatToSingleError;
 
-    return pipe(validationErrors, ReadonlyArray.map(formatError), concat);
-  };
+      return pipe(formatErrors(validationErrors), concat);
+    };
 
 export default errorsToRecord;
