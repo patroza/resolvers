@@ -1,5 +1,5 @@
-import * as Either from 'fp-ts/Either';
-import { pipe } from 'fp-ts/function';
+import * as Either from '@effect-ts/core/Either';
+import { pipe } from '@effect-ts/core/Function';
 
 const arrayToPath = (paths: Either.Either<string, number>[]): string =>
   paths.reduce(

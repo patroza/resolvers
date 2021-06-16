@@ -1,2 +1,2 @@
-export * from './io-ts';
+export * from './schema';
 export * from './types';

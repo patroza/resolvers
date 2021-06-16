@@ -1,4 +1,4 @@
-import * as t from 'io-ts';
+import * as t from "@effect-ts/schema"
 import {
   IntersectionType,
   TaggedUnionType,
@@ -40,7 +40,7 @@ const formatErrorPath = (context: t.Context): string =>
     arrayToPath,
   );
 
-const formatError = (e: t.ValidationError): FieldErrorWithPath => {
+const formatError = (e: t.AnyError): FieldErrorWithPath => {
   const path = formatErrorPath(e.context);
 
   const message = pipe(

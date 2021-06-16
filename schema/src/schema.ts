@@ -1,15 +1,17 @@
-import * as Either from 'fp-ts/lib/Either';
+import * as Either from '@effect-ts/core/Either';
+import * as These from '@effect-ts/schema/These';
 import { pipe } from 'fp-ts/function';
 import { toNestError } from '@hookform/resolvers';
 import errorsToRecord from './errorsToRecord';
 import { Resolver } from './types';
 
-export const ioTsResolver: Resolver = (codec) => (values, _context, options) =>
+export const schemaResolver: Resolver = (codec) => (values, _context, options) =>
   pipe(
     values,
-    codec.decode,
-    Either.mapLeft(errorsToRecord(options.criteriaMode === 'all')),
-    Either.mapLeft((errors) => toNestError(errors, options.fields)),
+    codec,
+    These.mapError(errorsToRecord(options.criteriaMode === 'all')),
+    These.mapError((errors) => toNestError(errors, options.fields)),
+    These.result,
     Either.fold(
       (errors) => ({
         values: {},

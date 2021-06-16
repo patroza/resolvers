@@ -1,4 +1,5 @@
-import * as t from 'io-ts';
+import * as t from '@effect-ts/schema';
+import * as P from '@effect-ts/schema/Parser';
 import {
   FieldError,
   FieldValues,
@@ -8,7 +9,7 @@ import {
 } from 'react-hook-form';
 
 export type Resolver = <T, TFieldValues, TContext>(
-  codec: t.Decoder<FieldValues, T>,
+  codec: P.Parser<FieldValues, t.AnyError, T>,
 ) => (
   values: UnpackNestedValue<TFieldValues>,
   _context: TContext | undefined,
